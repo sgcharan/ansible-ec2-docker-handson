@@ -1,0 +1,4 @@
+#master playbook
+- hosts: localhost
+  roles:
+       - ec2terminate

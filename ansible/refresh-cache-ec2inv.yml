@@ -1,0 +1,8 @@
+- hosts: localhost
+  tasks:
+   - name: running refresh-cache option for ec2.py inventory
+     shell: /etc/ansible/ec2.py --refresh-cache
+   
+   - name: copy etc/ansible/ec2.py to etc/ansible/hosts - makes ec2.py inventory for ansible for aws
+     shell: cp /etc/ansible/ec2.py /etc/ansible/hosts
+

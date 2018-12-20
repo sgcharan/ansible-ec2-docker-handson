@@ -1,0 +1,8 @@
+- hosts: tag_Env_uat
+  user: ec2-user
+  sudo: yes
+  tasks:
+   - name: install tree
+     yum: 
+       name: tree
+       state: latest 

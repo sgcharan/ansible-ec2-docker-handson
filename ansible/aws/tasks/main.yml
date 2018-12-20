@@ -1,40 +1,122 @@
 ---
-# tasks file for aws
-#- hosts: localhost
-#  connection: local
-#  gather_facts: false
-#  vars:
-#   aws_access_key: "AKIAIWJUADQP23132CFQ"
-#   aws_secret_key: "NCMx885+nNsd2KuprQeZeVsU1arRZc7hqewq2z"
-#  tasks:
-      - name: create security group
-        ec2_group:
-          name: dmz
+
+- name: create security group
+  ec2_group:
+          name: ec2-sg
           description: an example ec2 group
-          region: us-east-2
+          region: "{{ region }}"
           aws_access_key: "{{ aws_access_key }}"
           aws_secret_key: "{{ aws_secret_key }}"
           rules:
             - proto: tcp
+              from_port: 22
+              to_port: 22
+              cidr_ip: 0.0.0.0/0
+            - proto: tcp
               from_port: 80
               to_port: 80
               cidr_ip: 0.0.0.0/0
-        register: group
+            - proto: tcp
+              from_port: 443 
+              to_port: 443
+              cidr_ip: 0.0.0.0/0
+          rules_egress:
+            - proto: tcp
+              from_port: 80
+              to_port: 80
+              cidr_ip: 0.0.0.0/0
+            - proto: tcp
+              from_port: 443 
+              to_port: 443
+              cidr_ip: 0.0.0.0/0
+  register: group
 
+- name: remove key pair by name
+  ec2_key:
+    name: ec2key2
+    region: "{{ region }}"
+    state: absent
 
-      - name: create ec2 instance
-        ec2:
+- name: Create an EC2 key
+  ec2_key:
+      aws_access_key: "{{ aws_access_key }}"
+      aws_secret_key: "{{ aws_secret_key }}"
+      name: ec2key2
+      region: "{{ region }}"
+  register: ec2_key2
+
+- name: display ec2key generated
+  debug: msg={{ec2_key2.key.private_key}}
+
+- name: Save private key
+  copy: 
+      content="{{ec2_key2.key.private_key}}"
+      dest=./ec2key2.pem
+      mode=0600
+  when: ec2_key2.changed
+
+#- name: run ssh agent
+#  shell: |
+#        eval "$(ssh-agent)"
+#        ssh-add ./ec2key2.pem
+
+- name: add pem to ssh agent
+  shell: ssh-add ./ec2key2.pem
+
+- name: verify ssh agent
+  shell: ssh-add -L
+
+- name: create ec2 instance
+  ec2:
           aws_access_key: "{{ aws_access_key }}"
           aws_secret_key: "{{ aws_secret_key }}"
           image: ami-e81b308d
+          key_name: ec2key2
           wait: yes
           instance_type: t2.micro
           group_id:  "{{ group.group_id }}"
           region: us-east-2
+          instance_tags:
+                Env: "uat"
+                Name: "webserver6"
           count_tag:
-            Name: dbserver
+            Name: "webserver6"
           exact_count: 1
-        register: ec2
+  register: ec2
 
-      - name: print ec2 variable
-        debug: msg=ec2
+- name: print ec2 public ip
+  debug: msg={{item.public_ip}}
+  with_items:
+       - "{{ ec2.instances }}"
+
+
+
+#- name: Add the newly created EC2 instance to host group
+#  lineinfile: 
+#           dest=./hosts 
+#           regexp= "{{ item.public_ip }}" 
+#           insertafter= "[ec2instances]"
+#           line= {{ item.public_ip }}{{ hoststring1}}{{ item.public_ip }}{{hoststring2 }}
+#           state=present
+#  with_items:
+#          -  "{{ec2.instances}}"
+
+#- name: Verify if hosts file is updated with ec2 instance details
+#  wait_for: path=./hosts search_regex= {{hoststring1}}{{ item.public_ip }}
+#  with_items:
+#          - "{{ec2.instances}}"
+
+#- name: add ec2 instances to in memory hosts
+#  add_host:
+#     groups: ec2servers
+#     hostname: "{{item.public_ip }}"
+#     ansible_host: "{{item.public_ip}}"
+#     ansible_ssh_private_key_file: "/home/sgcharan/ansible-ec2-docker-handson/ansible/aws-private.pem"
+
+#- name: Wait for SSH to come up
+#  local_action: wait_for 
+#                host= {{ item.public_ip }}
+#                port=22
+#                state=started
+#  with_items:
+#         - "{{ec2.instances}}"

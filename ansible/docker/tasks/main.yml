@@ -1,0 +1,94 @@
+---
+# tasks file for docker
+- name: update yum
+  shell: sudo yum update -y
+
+- name: install recent docker ce version
+  yum:
+     name: docker
+     state: latest
+  become: yes
+
+- name: check docker version
+  shell: docker --version
+  register: dockerversion
+
+- name: print docker version
+  debug: msg={{dockerversion}}
+
+- name: copy Dockerfile into ec2 instance
+  copy:
+    src: ./Dockerfile
+    dest: /home/ec2-user/
+
+
+- name: copy war into ec2 instace
+  copy:
+    src: ./com.sampleProject.war
+    dest: /home/ec2-user/
+  
+- name: start docker service
+  shell: sudo service docker start
+
+- name: build docker image
+  shell: docker build -t javawithwar .
+  become: yes
+
+- name: fetch docker images
+  shell: docker images
+  become: yes
+  register: dockerimages
+
+- name: get count of running containers
+  shell: docker ps | grep javawithwar | wc -l
+  become: yes
+  register: containercount
+
+- name: print running container count
+  debug: msg={{containercount}}
+
+- name: set containercount in facts
+  set_fact: 
+    containers_running: "{{ False if containercount.stdout_lines[0] == '0' else True }}"
+
+- name: stop all running containers
+  shell: docker stop $(docker ps -aq)
+  become: yes
+  when: containers_running
+#  with_items:
+#         - {{containercount.stdout_lines}}
+
+- name: remove all containers
+  shell: docker rm $(docker ps -aq)
+  become: yes
+  when: containers_running
+#  with_items:
+#         - {{containercount.stdout_lines}}
+
+- name: create and run docker containe for the image javawithwar in host port 80 forwarded to port 8088 of application
+  shell: docker run -d --name container1 --hostname container1 -p 80:8088 javawithwar
+  become: yes
+  register: dockercontainerinstance
+
+- name: print container instance run response
+  debug: msg={{dockercontainerinstance}}
+
+- name: create and run docker containe for the image javawithwar in host port 80 forwarded to port 8088 of application
+  shell: docker run -d --name container2 --hostname container2 -p 443:8088 javawithwar
+  become: yes
+  register: dockercontainerinstance
+
+- name: print container instance run response
+  debug: msg={{dockercontainerinstance}}
+
+- name: fetch running containers
+  shell: docker ps -a
+  become: yes
+  register: runningcontainers
+
+- name: print running containers
+  debug: msg={{runningcontainers}}
+
+
+- name: print docker images
+  debug: msg={{dockerimages}}

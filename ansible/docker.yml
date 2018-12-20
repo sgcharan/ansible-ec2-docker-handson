@@ -1,0 +1,5 @@
+- hosts: tag_Env_uat
+  user: ec2-user
+#  gather_facts: false
+  roles:
+     - docker 
